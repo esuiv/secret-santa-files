@@ -1,0 +1,7 @@
+version: 0.2
+phases:
+  post_build:
+    commands:
+       - aws s3 sync . s3://pp-secretsanta      
+artifacts:
+  files: '**/*'
