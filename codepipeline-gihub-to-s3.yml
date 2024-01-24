@@ -1,0 +1,100 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Template for the CI/CD pipeline from GitHub repo to S3 bucket for static website content
+Resources:
+  S3BucketArtifact:
+    Type: "AWS::S3::Bucket"
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: codepipeline-artifact
+      Tags:
+        - Key: 'project'
+          Value: 'secretsanta'
+        - Key: 'env'
+          Value: 'prod'
+  S3BucketWebsite:
+    Type: "AWS::S3::Bucket"
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: secretsanta
+  Build:
+    Type: "AWS::CodeBuild::Project"
+    Properties:
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:7.0
+        Type: LINUX_CONTAINER
+      Name: secretsanta
+      ServiceRole: <CODEBUILDROLE>
+      Source: 
+        Type: CODEPIPELINE
+      Tags:
+        - Key: 'project'
+          Value: 'secretsanta'
+        - Key: 'env'
+          Value: 'prod'
+  Pipeline:
+    Type: "AWS::CodePipeline::Pipeline"
+    Properties:
+      Tags:
+        - Key: 'project'
+          Value: 'secretsanta'
+        - Key: 'env'
+          Value: 'prod'
+      ArtifactStore:
+        Type: S3
+        Location: codepipeline-artifact-secret-santa
+      PipelineType: V2
+      RoleArn: <CODEPIPELINEROLE>
+      Stages: 
+        - Name: Source
+          Actions: 
+            - ActionTypeId: 
+                Category: Source
+                Owner: AWS
+                Provider: CodeStarSourceConnection
+                Version: '1'
+              Configuration: 
+                ConnectionArn: <CONNECTIONARN>
+                FullRepositoryId: "user/repo"
+                BranchName: "main"
+                OutputArtifactFormat: "CODE_ZIP"
+              InputArtifacts: []
+              Name: ApplicationSource
+              OutputArtifacts: 
+                - Name: SourceOutputArtifact
+              RunOrder: 1
+        - Name: Build
+          Actions: 
+            - ActionTypeId: 
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              Configuration: 
+                ProjectName: secretsanta
+              Name: CopyToS3
+              InputArtifacts:
+                - Name: SourceOutputArtifact
+              OutputArtifacts: 
+                - Name: BuildOutputArtifact
+              Region: eu-west-3
+              RunOrder: 1
+        - Name: Deploy
+          Actions: 
+            - ActionTypeId: 
+                Category: Deploy
+                Owner: AWS
+                Provider: S3
+                Version: '1'
+              Configuration: 
+                BucketName: secretsanta
+                Extract: 'true'
+                ObjectKey: MyWebsite
+              Name: UnzipInS3
+              InputArtifacts:
+                - Name: BuildOutputArtifact
+              OutputArtifacts: []
+              Region: eu-west-3
+              RunOrder: 1
